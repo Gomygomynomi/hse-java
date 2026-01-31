@@ -1,0 +1,32 @@
+[
+  [
+    ["GREEN", "GREEN", "GREEN"],
+    ["GREEN", "GREEN", "GREEN"],
+    ["BLUE", "BLUE", "BLUE"]
+  ],
+  [
+    ["WHITE", "WHITE", "WHITE"],
+    ["RED", "RED", "RED"],
+    ["RED", "RED", "RED"]
+  ],
+  [
+    ["BLUE", "BLUE", "RED"],
+    ["BLUE", "BLUE", "RED"],
+    ["BLUE", "BLUE", "RED"]
+  ],
+  [
+    ["GREEN", "WHITE", "WHITE"],
+    ["GREEN", "WHITE", "WHITE"],
+    ["GREEN", "WHITE", "WHITE"]
+  ],
+  [
+    ["YELLOW", "YELLOW", "YELLOW"],
+    ["YELLOW", "YELLOW", "YELLOW"],
+    ["YELLOW", "YELLOW", "YELLOW"]
+  ],
+  [
+    ["ORANGE", "ORANGE", "ORANGE"],
+    ["ORANGE", "ORANGE", "ORANGE"],
+    ["ORANGE", "ORANGE", "ORANGE"]
+  ]
+]

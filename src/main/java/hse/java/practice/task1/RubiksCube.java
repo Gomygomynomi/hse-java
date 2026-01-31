@@ -1,6 +1,5 @@
 package hse.java.practice.task1;
 
-
 import java.util.Arrays;
 
 /**
