@@ -14,8 +14,11 @@ jobs:
       checks: write
     
     steps:
-      - name: Checkout main repository (PR)
+      - name: Checkout PR code (works for forks)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
