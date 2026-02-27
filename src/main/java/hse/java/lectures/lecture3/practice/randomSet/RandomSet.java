@@ -11,7 +11,6 @@ public class RandomSet<T> {
     private Object[] elements;
     private int size;
 
-    // Хеш-таблица: два параллельных массива
     private Object[] keys;
     private int[] values;
     private int tableSize;
@@ -59,7 +58,7 @@ public class RandomSet<T> {
 
         int pos = findIndex(value);
         if (pos == -1 || keys[pos] == DELETED || keys[pos] == null || !keys[pos].equals(value)) {
-            return false; // элемента нет
+            return false;
         }
 
         int elementIndex = values[pos];
@@ -78,12 +77,11 @@ public class RandomSet<T> {
 
         keys[pos] = DELETED;
         values[pos] = -1;
-        entriesCount--;
 
+        entriesCount--;
         size--;
         return true;
     }
-
     public boolean contains(T value) {
         if (value == null) return false;
         int pos = findIndex(value);
