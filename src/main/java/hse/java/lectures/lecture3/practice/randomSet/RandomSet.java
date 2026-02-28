@@ -129,6 +129,7 @@ public class RandomSet<T> {
         return findPosition(value) != -1;
     }
 
+
     public T getRandom() {
         if (size == 0) {
             throw new EmptySetException("RandomSet is empty");
