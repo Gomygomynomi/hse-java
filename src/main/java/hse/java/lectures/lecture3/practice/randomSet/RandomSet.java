@@ -12,6 +12,7 @@ public class RandomSet<T> {
             this.key = key;
             this.index = index;
         }
+
     }
 
     private final Node<T> DELETED = new Node<>(null, -1);
