@@ -4,157 +4,131 @@ import java.util.Random;
 
 public class RandomSet<T> {
 
-    private static final int INITIAL_CAPACITY = 16;
-    private static final double LOAD_FACTOR = 0.75;
-    private static final Object DELETED = new Object();
+    private static class Node<T> {
+        T key;
+        int index;
 
+        Node(T key, int index) {
+            this.key = key;
+            this.index = index;
+        }
+    }
+
+    private final Node<T> DELETED = new Node<>(null, -1);
+    private final Random random = new Random();
+    private Node<T>[] table;
     private Object[] elements;
-    private int size;
-
-    private Object[] keys;
-    private int[] values;
-    private int tableSize;
-    private int entriesCount;
-
-    private final Random random;
+    private int size = 0;
+    private int capacity = 4;
+    private final double loadFactor = 0.5;
 
     public RandomSet() {
-        elements = new Object[INITIAL_CAPACITY];
-        size = 0;
-        tableSize = INITIAL_CAPACITY;
-        keys = new Object[tableSize];
-        values = new int[tableSize];
-        for (int i = 0; i < tableSize; i++) {
-            values[i] = -1;
+        table = new Node[capacity];
+        elements = new Object[2];
+    }
+
+    private int hash(T key) {
+        return Math.abs(key.hashCode() % capacity);
+    }
+
+    private void rehash() {
+        Node<T>[] oldTable = table;
+        int oldCapacity = capacity;
+
+        capacity *= 2;
+        table = new Node[capacity];
+
+        for (int i = 0; i < oldCapacity; i++) {
+            Node<T> node = oldTable[i];
+            if (node != null && node != DELETED) {
+                T key = node.key;
+                int idx = Math.abs(key.hashCode() % capacity);
+                while (table[idx] != null) {
+                    idx = (idx + 1) % capacity;
+                }
+                table[idx] = new Node<>(key, node.index);
+            }
         }
-        entriesCount = 0;
-        random = new Random();
+    }
+
+    private int findPosition(T key) {
+        int index = hash(key);
+        for (int i = 0; i < capacity; i++) {
+            Node<T> entry = table[index];
+            if (entry == null) {
+                return -1;
+            }
+            if (entry != DELETED && entry.key.equals(key)) {
+                return index;
+            }
+            index = (index + 1) % capacity;
+        }
+        return -1;
+    }
+
+    private void ensureElementsCapacity() {
+        if (size < elements.length) {
+            return;
+        }
+        int newCapacity = elements.length * 2;
+        Object[] newElements = new Object[newCapacity];
+        System.arraycopy(elements, 0, newElements, 0, elements.length);
+        elements = newElements;
     }
 
     public boolean insert(T value) {
-        int index = findIndex(value);
-        if (index != -1 && keys[index] != DELETED && keys[index] != null && keys[index].equals(value)) {
+        if (findPosition(value) != -1) {
             return false;
         }
 
-        ensureCapacity();
+        if (size >= capacity * loadFactor) {
+            rehash();
+        }
 
-        int pos = findFreeSlot(value);
-        keys[pos] = value;
-        values[pos] = size;
-        entriesCount++;
+        int idx = hash(value);
+        while (table[idx] != null && table[idx] != DELETED) {
+            idx = (idx + 1) % capacity;
+        }
 
+        ensureElementsCapacity();
+        int newElementIndex = size;
         elements[size] = value;
         size++;
 
-        if (entriesCount > tableSize * LOAD_FACTOR) {
-            resizeTable();
-        }
+        table[idx] = new Node<>(value, newElementIndex);
         return true;
     }
 
     public boolean remove(T value) {
-        if (value == null) return false;
-
-        int pos = findIndex(value);
-        if (pos == -1 || keys[pos] == DELETED || keys[pos] == null || !keys[pos].equals(value)) {
+        int pos = findPosition(value);
+        if (pos == -1) {
             return false;
         }
 
-        int elementIndex = values[pos];
+        int removedIndex = table[pos].index;
+        table[pos] = DELETED;
 
-        int lastIndex = size - 1;
-        T lastValue = (T) elements[lastIndex];
-
-        if (elementIndex != lastIndex) {
-            elements[elementIndex] = lastValue;
-            int lastPos = findIndex(lastValue);
+        if (removedIndex != size - 1) {
+            T lastValue = (T) elements[size - 1];
+            elements[removedIndex] = lastValue;
+            int lastPos = findPosition(lastValue);
             if (lastPos != -1) {
-                values[lastPos] = elementIndex;
+                table[lastPos].index = removedIndex;
             }
         }
-        elements[lastIndex] = null;
 
-        keys[pos] = DELETED;
-        values[pos] = -1;
-
-        entriesCount--;
         size--;
+        elements[size] = null;
+
         return true;
     }
+
     public boolean contains(T value) {
-        if (value == null) return false;
-        int pos = findIndex(value);
-        return pos != -1 && keys[pos] != DELETED && keys[pos] != null && keys[pos].equals(value);
+        return findPosition(value) != -1;
     }
 
     public T getRandom() {
         int randomIndex = random.nextInt(size);
         return (T) elements[randomIndex];
-    }
-
-    private void ensureCapacity() {
-        if (size == elements.length) {
-            int newCapacity = elements.length * 2;
-            Object[] newElements = new Object[newCapacity];
-            System.arraycopy(elements, 0, newElements, 0, size);
-            elements = newElements;
-        }
-    }
-
-    private int findIndex(T key) {
-        int hash = key.hashCode();
-        int start = Math.abs(hash % tableSize);
-        int i = start;
-        do {
-            if (keys[i] == null) {
-                return -1;
-            }
-            if (keys[i] != DELETED && keys[i].equals(key)) {
-                return i;
-            }
-            i = (i + 1) % tableSize;
-        } while (i != start);
-        return -1;
-    }
-
-    private int findFreeSlot(T key) {
-        int hash = key.hashCode();
-        int start = Math.abs(hash % tableSize);
-        int i = start;
-        do {
-            if (keys[i] == null || keys[i] == DELETED) {
-                return i;
-            }
-            i = (i + 1) % tableSize;
-        } while (i != start);
-
-        throw new RuntimeException("(");
-    }
-
-    private void resizeTable() {
-        int newTableSize = tableSize * 2;
-        Object[] newKeys = new Object[newTableSize];
-        int[] newValues = new int[newTableSize];
-        for (int i = 0; i < newTableSize; i++) {
-            newValues[i] = -1;
-        }
-
-        for (int i = 0; i < size; i++) {
-            T elem = (T) elements[i];
-            int hash = elem.hashCode();
-            int start = Math.abs(hash % newTableSize);
-            int pos = start;
-            while (newKeys[pos] != null) {
-                pos = (pos + 1) % newTableSize;
-            }
-            newKeys[pos] = elem;
-            newValues[pos] = i;
-        }
-
-        keys = newKeys;
-        values = newValues;
-        tableSize = newTableSize;
-        entriesCount = size;
     }
 }
