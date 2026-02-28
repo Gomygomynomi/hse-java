@@ -28,6 +28,7 @@ public class RandomSet<T> {
         elements = new Object[2];
     }
 
+
     private int hash(T key) {
         return Math.abs(key.hashCode() % capacity);
     }
@@ -129,6 +130,9 @@ public class RandomSet<T> {
     }
 
     public T getRandom() {
+        if (size == 0) {
+            throw new EmptySetException("RandomSet is empty");
+        }
         int randomIndex = random.nextInt(size);
         return (T) elements[randomIndex];
     }
