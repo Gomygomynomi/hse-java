@@ -1,36 +1,43 @@
 package hse.java.commander;
 
-import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ListView;
+import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
+import javafx.util.Callback;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.Comparator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MainController {
 
     @FXML
-    public ListView<String> left;
+    private ListView<Path> leftPane;
     @FXML
-    public ListView<String> right;
+    private ListView<Path> rightPane;
     @FXML
-    public Button copy;
+    private Label leftPathLabel;
     @FXML
-    public Button move;
+    private Label rightPathLabel;
     @FXML
-    public Button delete;
+    private Button btnCopy;
+    @FXML
+    private Button btnMove;
+    @FXML
+    private Button btnDelete;
 
     private Path leftDir;
     private Path rightDir;
-    private ListView<String> activePanel;
+    private ListView<Path> focusedPane;
 
     public void setInitialDirs(Path leftStart, Path rightStart) {
-        this.leftDir = leftStart;
-        this.rightDir = rightStart;
+        if (leftStart != null) this.leftDir = leftStart;
+        if (rightStart != null) this.rightDir = rightStart;
+        refreshBoth();
     }
 
     @FXML
@@ -38,131 +45,114 @@ public class MainController {
         if (leftDir == null) leftDir = Paths.get(System.getProperty("user.home"));
         if (rightDir == null) rightDir = Paths.get(System.getProperty("user.home"));
 
-        left.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
-                navigate(left);
+        Callback<ListView<Path>, ListCell<Path>> cellFactory = lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(Path item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    if (item.getFileName() == null) {
+                        setText(item.toString());
+                    } else {
+                        setText(item.getFileName().toString());
+                    }
+                    if (Files.isDirectory(item)) {
+                        setStyle("-fx-font-weight: bold;");
+                    } else {
+                        setStyle("");
+                    }
+                }
             }
-            activePanel = left;
-        });
-        right.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
-                navigate(right);
-            }
-            activePanel = right;
-        });
+        };
+        leftPane.setCellFactory(cellFactory);
+        rightPane.setCellFactory(cellFactory);
 
-        activePanel = left;
+        setupPaneInteraction(leftPane, true);
+        setupPaneInteraction(rightPane, false);
 
-        copy.setOnAction(e -> performCopy());
-        move.setOnAction(e -> performMove());
-        delete.setOnAction(e -> performDelete());
+        btnCopy.setOnAction(e -> transferSelected(TransferOp.COPY));
+        btnMove.setOnAction(e -> transferSelected(TransferOp.MOVE));
+        btnDelete.setOnAction(e -> transferSelected(TransferOp.DELETE));
 
-        refresh(left, leftDir);
-        refresh(right, rightDir);
+        refreshBoth();
     }
 
-    private void navigate(ListView<String> panel) {
-        String selected = panel.getSelectionModel().getSelectedItem();
+    private void setupPaneInteraction(ListView<Path> pane, boolean isLeft) {
+        pane.setOnMouseClicked(event -> {
+            focusedPane = pane;
+            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                Path selected = pane.getSelectionModel().getSelectedItem();
+                if (selected == null) return;
+
+                Path current = isLeft ? leftDir : rightDir;
+                if (selected.equals(current.getParent())) {
+                    Path parent = current.getParent();
+                    if (parent != null) {
+                        if (isLeft) leftDir = parent;
+                        else rightDir = parent;
+                        refreshBoth();
+                    }
+                    return;
+                }
+                if (Files.isDirectory(selected)) {
+                    if (isLeft) leftDir = selected;
+                    else rightDir = selected;
+                    refreshBoth();
+                }
+            }
+        });
+    }
+
+    private enum TransferOp { COPY, MOVE, DELETE }
+
+    private void transferSelected(TransferOp op) {
+        if (focusedPane == null) return;
+        Path selected = focusedPane.getSelectionModel().getSelectedItem();
         if (selected == null) return;
 
-        Path currentDir = panel == left ? leftDir : rightDir;
-        Path newDir;
-        if (selected.equals("..")) {
-            newDir = currentDir.getParent();
-            if (newDir == null) return;
-        } else {
-            newDir = currentDir.resolve(selected);
-            if (!Files.isDirectory(newDir)) return;
-        }
+        Path sourceDir = (focusedPane == leftPane) ? leftDir : rightDir;
+        Path targetDir = (focusedPane == leftPane) ? rightDir : leftDir;
 
-        if (panel == left) {
-            leftDir = newDir;
-            refresh(left, leftDir);
-        } else {
-            rightDir = newDir;
-            refresh(right, rightDir);
-        }
-    }
+        if (selected.equals(sourceDir.getParent())) return;
 
-    private void refresh(ListView<String> panel, Path dir) {
-        try {
-            var items = Files.list(dir)
-                    .filter(p -> !p.getFileName().toString().startsWith("."))
-                    .map(p -> p.getFileName().toString())
-                    .sorted()
-                    .collect(Collectors.toList());
-            items.add(0, "..");
-            Platform.runLater(() -> panel.getItems().setAll(items));
-        } catch (IOException e) {
-            showError("Cannot read directory", e.getMessage());
-        }
-    }
+        Path src = sourceDir.resolve(selected.getFileName());
 
-    private void performCopy() {
-        if (activePanel == null) return;
-        Path sourceDir = activePanel == left ? leftDir : rightDir;
-        Path targetDir = activePanel == left ? rightDir : leftDir;
-        String selected = activePanel.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.equals("..")) return;
-
-        Path source = sourceDir.resolve(selected);
-        Path target = targetDir.resolve(selected);
-
-        try {
-            if (Files.isDirectory(source)) {
-                copyDirectory(source, target);
-            } else {
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+        if (op == TransferOp.DELETE) {
+            try {
+                if (Files.isDirectory(src)) {
+                    deleteDirectory(src);
+                } else {
+                    Files.deleteIfExists(src);
+                }
+            } catch (IOException e) {
+                showError("Delete failed", e.getMessage());
             }
             refreshBoth();
-        } catch (IOException e) {
-            showError("Copy failed", e.getMessage());
-            refreshBoth();
+            return;
         }
-    }
 
-    private void performMove() {
-        if (activePanel == null) return;
-        Path sourceDir = activePanel == left ? leftDir : rightDir;
-        Path targetDir = activePanel == left ? rightDir : leftDir;
-        String selected = activePanel.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.equals("..")) return;
-
-        Path source = sourceDir.resolve(selected);
-        Path target = targetDir.resolve(selected);
-
+        Path dst = targetDir.resolve(selected.getFileName());
         try {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            refreshBoth();
-        } catch (IOException e) {
-            showError("Move failed", e.getMessage());
-            refreshBoth();
-        }
-    }
-
-    private void performDelete() {
-        if (activePanel == null) return;
-        Path dir = activePanel == left ? leftDir : rightDir;
-        String selected = activePanel.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.equals("..")) return;
-
-        Path target = dir.resolve(selected);
-        try {
-            if (Files.isDirectory(target)) {
-                deleteDirectory(target);
-            } else {
-                Files.delete(target);
+            if (op == TransferOp.COPY) {
+                if (Files.isDirectory(src)) {
+                    copyDirectory(src, dst);
+                } else {
+                    Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } else if (op == TransferOp.MOVE) {
+                Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING);
             }
-            refreshBoth();
         } catch (IOException e) {
-            showError("Delete failed", e.getMessage());
-            refreshBoth();
+            showError(op == TransferOp.COPY ? "Copy failed" : "Move failed", e.getMessage());
         }
+        refreshBoth();
     }
 
     private void copyDirectory(Path source, Path target) throws IOException {
-        try (var stream = Files.walk(source)) {
-            stream.forEach(sourcePath -> {
+        try (Stream<Path> walk = Files.walk(source)) {
+            walk.forEach(sourcePath -> {
                 Path targetPath = target.resolve(source.relativize(sourcePath));
                 try {
                     if (Files.isDirectory(sourcePath)) {
@@ -178,8 +168,8 @@ public class MainController {
     }
 
     private void deleteDirectory(Path dir) throws IOException {
-        try (var stream = Files.walk(dir)) {
-            stream.sorted((a, b) -> b.compareTo(a))
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder())
                     .forEach(path -> {
                         try {
                             Files.deleteIfExists(path);
@@ -191,8 +181,28 @@ public class MainController {
     }
 
     private void refreshBoth() {
-        refresh(left, leftDir);
-        refresh(right, rightDir);
+        safeRefresh(leftPane, leftDir, leftPathLabel);
+        safeRefresh(rightPane, rightDir, rightPathLabel);
+    }
+
+    private void safeRefresh(ListView<Path> pane, Path dir, Label label) {
+        if (dir == null) {
+            pane.setItems(FXCollections.observableArrayList());
+            if (label != null) label.setText("");
+            return;
+        }
+
+        ObservableList<Path> items = FXCollections.observableArrayList();
+        Path parent = dir.getParent();
+        if (parent != null) items.add(parent);
+
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase()))
+                    .forEach(items::add);
+        } catch (IOException e) {
+        }
+        pane.setItems(items);
+        if (label != null) label.setText(dir.toString());
     }
 
     private void showError(String title, String message) {

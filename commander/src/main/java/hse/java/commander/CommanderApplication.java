@@ -10,7 +10,7 @@ public class CommanderApplication extends Application {
     public void start(Stage stage) throws Exception {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("commander-ui.fxml"));
         Scene scene = new Scene(loader.load());
-        stage.setTitle("Two-Panel File Commander");
+        stage.setTitle("Commander");
         stage.setScene(scene);
         stage.show();
     }
