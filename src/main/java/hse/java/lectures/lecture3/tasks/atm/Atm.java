@@ -21,8 +21,14 @@ public class Atm {
         public int value() {
             return value;
         }
-    }
 
+        public static Denomination fromInt(int value) {
+            return Arrays.stream(values())
+                    .filter(v -> v.value == value)
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
 
     private final Map<Denomination, Integer> banknotes = new EnumMap<>(Denomination.class);
 
@@ -33,11 +39,8 @@ public class Atm {
         for (Map.Entry<Denomination, Integer> entry : banknotes.entrySet()) {
             Denomination denom = entry.getKey();
             Integer count = entry.getValue();
-            if (count == null || count <= 0) {
-                throw new InvalidDepositException("Invalid count: " + count);
-            }
-            if (denom == null) {
-                throw new InvalidDepositException("Denomination cannot be null");
+            if (denom == null || count == null || count <= 0) {
+                throw new InvalidDepositException("Invalid denomination or count");
             }
         }
         for (Map.Entry<Denomination, Integer> entry : banknotes.entrySet()) {
@@ -55,7 +58,7 @@ public class Atm {
             throw new InsufficientFundsException("Insufficient funds");
         }
 
-        List<Denomination> sorted = Arrays.asList(Denomination.values());
+        List<Denomination> sorted = new ArrayList<>(EnumSet.allOf(Denomination.class));
         sorted.sort((a, b) -> Integer.compare(b.value(), a.value()));
 
         Map<Denomination, Integer> result = new EnumMap<>(Denomination.class);
