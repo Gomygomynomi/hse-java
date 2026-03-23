@@ -23,6 +23,7 @@ public class Atm {
         }
     }
 
+
     private final Map<Denomination, Integer> banknotes = new EnumMap<>(Denomination.class);
 
     public Atm() {
